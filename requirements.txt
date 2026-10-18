@@ -1,0 +1,27 @@
+# Blood Bank & Donation Management System (BBMS) - Python backend dependencies
+# Install: pip install -r requirements.txt   (use a virtual environment)
+# Requires Python 3.10+. The React + Vite frontend is installed separately with npm.
+
+# --- Web framework ---
+fastapi>=0.110,<1.0
+uvicorn[standard]>=0.29,<1.0        # ASGI server: uvicorn src.backend.main:app --reload
+python-multipart>=0.0.9             # form data (OAuth2 password login form)
+pydantic>=2.6,<3.0                  # request/response schemas
+email-validator>=2.1                # needed for Pydantic EmailStr (donor / signup emails)
+
+# --- Database ---
+sqlalchemy>=2.0,<3.0                # ORM (2.0 style)
+alembic>=1.13,<2.0                  # versioned schema migrations
+psycopg[binary]>=3.1,<4.0           # PostgreSQL driver
+
+# --- Auth & security (BBS-SR002, BBS-SR003) ---
+pyjwt>=2.8,<3.0                     # JWT sessions
+argon2-cffi>=23.1                   # password hashing (swap for bcrypt if the team prefers)
+
+# --- Configuration ---
+python-dotenv>=1.0                  # load .env in local dev (config comes from env vars)
+
+# --- Testing (unit / integration / system / performance) ---
+pytest>=8.0,<9.0
+httpx>=0.27                         # FastAPI TestClient
+pytest-cov>=5.0                     # coverage for CI
