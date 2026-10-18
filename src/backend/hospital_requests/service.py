@@ -1,11 +1,24 @@
-"""Business logic for hospital blood requests (BLOOD-15: submit a request)."""
+"""Business logic for hospital blood requests (BLOOD-15 submit, BLOOD-17 approve & dispatch)."""
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Callable
+from typing import Callable, Optional
 
 from .config import Settings
-from .models import BloodRequest, CurrentUser, NotFoundError, RequestRuleError
+from .models import (
+    ALLOWED_TRANSITIONS,
+    STATUS_APPROVED,
+    STATUS_DISPATCHED,
+    STATUS_PENDING,
+    STATUS_REJECTED,
+    BloodRequest,
+    CurrentUser,
+    InvalidTransitionError,
+    NotFoundError,
+    RequestEvent,
+    RequestRuleError,
+    StaffUser,
+)
 from .repository import RequestRepository
 from .schemas import SubmitRequestIn
 
@@ -20,10 +33,11 @@ def _as_utc(value: datetime) -> datetime:
 
 
 class RequestService:
-    """Submit / track part of HospitalRequestInterface.
+    """HospitalRequestInterface: submit, track, approve, reject and dispatch requests.
 
-    Shape and type checks live in the Pydantic schema; this class enforces the rules
-    that need settings or the current time. Repository and clock are injected for tests.
+    Shape and type checks live in the Pydantic schemas; this class enforces the rules
+    that need settings, the clock or the current status. Repository and clock are
+    injected for tests.
     """
 
     def __init__(
@@ -35,6 +49,8 @@ class RequestService:
         self._repo = repository
         self._settings = settings
         self._clock = clock
+
+    # ---------- hospital side (BLOOD-15) ----------
 
     def submit_request(self, user: CurrentUser, payload: SubmitRequestIn) -> BloodRequest:
         """Store a new PENDING request for the caller's hospital.
@@ -63,6 +79,56 @@ class RequestService:
     def list_requests(self, user: CurrentUser) -> list[BloodRequest]:
         """All requests submitted by the caller's hospital, newest first."""
         return self._repo.list_for_hospital(user.hospital_id)
+
+    # ---------- blood bank staff side (BLOOD-17) ----------
+
+    def list_queue(self, status: str = STATUS_PENDING) -> list[BloodRequest]:
+        """Requests in a given status across all hospitals, oldest first."""
+        return self._repo.list_by_status(status)
+
+    def approve(self, staff: StaffUser, request_id: int) -> BloodRequest:
+        """PENDING -> APPROVED."""
+        return self._transition(staff, request_id, STATUS_APPROVED, note=None)
+
+    def reject(self, staff: StaffUser, request_id: int, reason: str) -> BloodRequest:
+        """PENDING -> REJECTED, keeping the reason in the history."""
+        return self._transition(staff, request_id, STATUS_REJECTED, note=reason)
+
+    def dispatch(self, staff: StaffUser, request_id: int) -> BloodRequest:
+        """APPROVED -> DISPATCHED."""
+        return self._transition(staff, request_id, STATUS_DISPATCHED, note=None)
+
+    def get_history(self, request_id: int) -> list[RequestEvent]:
+        """Audit trail (who did what, when) for one request, oldest first."""
+        self._load(request_id)
+        return self._repo.list_events(request_id)
+
+    # ---------- internals ----------
+
+    def _load(self, request_id: int) -> BloodRequest:
+        request = self._repo.get(request_id)
+        if request is None:
+            raise NotFoundError(f"Request {request_id} not found")
+        return request
+
+    def _transition(
+        self, staff: StaffUser, request_id: int, target: str, note: Optional[str]
+    ) -> BloodRequest:
+        request = self._load(request_id)
+        if target not in ALLOWED_TRANSITIONS.get(request.status, ()):
+            raise InvalidTransitionError(request.status, target)
+        applied = self._repo.transition(
+            request_id=request_id,
+            from_status=request.status,
+            to_status=target,
+            actor_id=staff.id,
+            note=note,
+            at=self._clock(),
+        )
+        if not applied:
+            # Another staff member changed it between our read and our write.
+            raise InvalidTransitionError(self._load(request_id).status, target)
+        return self._load(request_id)
 
     def _check_quantity(self, quantity: int) -> None:
         limit = self._settings.max_units_per_request

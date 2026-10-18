@@ -1,4 +1,4 @@
-"""SQLAlchemy mapping for the `blood_requests` table (owned by this module).
+"""SQLAlchemy mappings for the tables owned by this module.
 
 NOTE: `Base` is a placeholder. The shared DB schema has no agreed owner yet; once the
 team defines one shared declarative Base, import it here instead and generate the
@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import CheckConstraint, DateTime, Index, Integer, String
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from .models import BLOOD_GROUPS, COMPONENTS, STATUS_PENDING, URGENCY_LEVELS
@@ -46,4 +46,19 @@ class BloodRequestRecord(Base):
     patient_reference: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     status: Mapped[str] = mapped_column(String(12), nullable=False, default=STATUS_PENDING)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class RequestEventRecord(Base):
+    """Audit trail for requests: every status change records the actor and timestamp
+    (BBS-SR004). If the team adds a shared audit log later, swap this out."""
+
+    __tablename__ = "blood_request_events"
+    __table_args__ = (Index("ix_blood_request_events_request", "request_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    request_id: Mapped[int] = mapped_column(Integer, ForeignKey("blood_requests.id"), nullable=False)
+    action: Mapped[str] = mapped_column(String(12), nullable=False)
+    actor_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    note: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

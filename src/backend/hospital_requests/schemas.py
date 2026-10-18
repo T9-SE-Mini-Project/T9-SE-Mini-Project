@@ -28,6 +28,25 @@ class SubmitRequestIn(BaseModel):
         return value or None
 
 
+class RejectIn(BaseModel):
+    """Body of POST /api/requests/{id}/reject. A reason is mandatory."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    reason: str = Field(min_length=1, max_length=500)
+
+
+class RequestEventOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    request_id: int
+    action: str
+    actor_id: int
+    note: Optional[str]
+    created_at: datetime
+
+
 class BloodRequestOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

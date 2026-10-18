@@ -1,4 +1,4 @@
-"""Domain constants, types and errors for hospital blood requests (BLOOD-15)."""
+"""Domain constants, types and errors for hospital blood requests (BLOOD-15, BLOOD-17)."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -8,25 +8,41 @@ from typing import Literal, Optional, Protocol, get_args
 BloodGroup = Literal["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]
 Component = Literal["Whole Blood", "RBC", "Platelets", "Plasma"]
 Urgency = Literal["routine", "urgent", "emergency"]
+Status = Literal["PENDING", "APPROVED", "REJECTED", "DISPATCHED"]
 
 BLOOD_GROUPS: tuple[str, ...] = get_args(BloodGroup)
 COMPONENTS: tuple[str, ...] = get_args(Component)
 URGENCY_LEVELS: tuple[str, ...] = get_args(Urgency)
 
 STATUS_PENDING = "PENDING"
-# Later stories (BLOOD-16 / BLOOD-17) move a request through these states.
 STATUS_APPROVED = "APPROVED"
-STATUS_DISPATCHED = "DISPATCHED"
 STATUS_REJECTED = "REJECTED"
+STATUS_DISPATCHED = "DISPATCHED"
+
+# Allowed status changes. Anything not listed here is rejected (409).
+ALLOWED_TRANSITIONS: dict[str, tuple[str, ...]] = {
+    STATUS_PENDING: (STATUS_APPROVED, STATUS_REJECTED),
+    STATUS_APPROVED: (STATUS_DISPATCHED,),
+}
+
+# Extra history entry written when a request is first created.
+EVENT_SUBMITTED = "SUBMITTED"
 
 ROLE_HOSPITAL_REP = "hospital_rep"
+ROLE_STAFF = "blood_bank_staff"
 
 
 class CurrentUser(Protocol):
-    """What this module needs from the auth module's authenticated user."""
+    """Hospital representative, as provided by the auth module."""
 
     id: int
     hospital_id: int
+
+
+class StaffUser(Protocol):
+    """Blood bank staff member, as provided by the auth module."""
+
+    id: int
 
 
 class RequestRuleError(Exception):
@@ -42,6 +58,15 @@ class NotFoundError(Exception):
     """The request does not exist, or is not visible to the caller."""
 
 
+class InvalidTransitionError(Exception):
+    """The request is not in a state that allows the requested action."""
+
+    def __init__(self, current: str, target: str):
+        super().__init__(f"Cannot move a {current} request to {target}")
+        self.current = current
+        self.target = target
+
+
 @dataclass(frozen=True)
 class BloodRequest:
     id: int
@@ -55,4 +80,16 @@ class BloodRequest:
     patient_reference: Optional[str]
     notes: Optional[str]
     status: str
+    created_at: datetime
+
+
+@dataclass(frozen=True)
+class RequestEvent:
+    """One entry in a request's audit trail (who did what, and when)."""
+
+    id: int
+    request_id: int
+    action: str
+    actor_id: int
+    note: Optional[str]
     created_at: datetime
