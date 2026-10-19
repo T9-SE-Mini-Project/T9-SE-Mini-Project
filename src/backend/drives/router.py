@@ -39,3 +39,36 @@ def create_drive(
     db.commit()
     db.refresh(new_drive)
     return new_drive
+
+@router.post("/slots/{slot_id}/book", response_model=schemas.SlotBookingResponse)
+def book_slot(
+    slot_id: int,
+    db: Session = Depends(get_db)
+):
+    # 1. Fetch slot from database
+    slot = db.query(models.Slot).filter(models.Slot.id == slot_id).first()
+    if not slot:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Slot not found."
+        )
+
+    # 2. Capacity check (SRS rule)
+    if slot.booked_count >= slot.capacity:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This slot is fully booked."
+        )
+
+    # 3. Update count and commit
+    slot.booked_count += 1
+    db.commit()
+    db.refresh(slot)
+
+    return {
+        "message": "Slot booked successfully.",
+        "slot_id": slot.id,
+        "drive_id": slot.drive_id,
+        "booked_count": slot.booked_count,
+        "capacity": slot.capacity
+    }
