@@ -37,3 +37,13 @@ class DriveResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class SlotBookingResponse(BaseModel):
+    message: str
+    slot_id: int
+    drive_id: int
+    booked_count: int
+    capacity: int
+
+    class Config:
+        from_attributes = True
