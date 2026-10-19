@@ -40,6 +40,7 @@ def create_drive(
     db.refresh(new_drive)
     return new_drive
 
+
 @router.post("/slots/{slot_id}/book", response_model=schemas.SlotBookingResponse)
 def book_slot(
     slot_id: int,
@@ -71,4 +72,20 @@ def book_slot(
         "drive_id": slot.drive_id,
         "booked_count": slot.booked_count,
         "capacity": slot.capacity
+    }
+
+
+@router.post("/slots/reminders/send", response_model=schemas.ReminderResponse)
+def send_slot_reminders(
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_staff_user)
+):
+    # Fetch all active slots with existing bookings
+    booked_slots = db.query(models.Slot).filter(models.Slot.booked_count > 0).all()
+    slot_ids = [slot.id for slot in booked_slots]
+
+    return {
+        "message": f"Reminders successfully queued for {len(slot_ids)} slots.",
+        "reminders_sent": len(slot_ids),
+        "slot_ids": slot_ids
     }

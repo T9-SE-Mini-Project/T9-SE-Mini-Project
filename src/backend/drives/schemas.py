@@ -47,3 +47,11 @@ class SlotBookingResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class ReminderResponse(BaseModel):
+    message: str
+    reminders_sent: int
+    slot_ids: List[int]
+
+    class Config:
+        from_attributes = True
