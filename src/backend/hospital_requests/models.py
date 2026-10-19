@@ -3,7 +3,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Literal, Optional, Protocol, get_args
+from typing import Literal, Optional, Protocol, Sequence, get_args
+
+from .cross_match import UnitLike
 
 BloodGroup = Literal["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]
 Component = Literal["Whole Blood", "RBC", "Platelets", "Plasma"]
@@ -65,6 +67,32 @@ class InvalidTransitionError(Exception):
         super().__init__(f"Cannot move a {current} request to {target}")
         self.current = current
         self.target = target
+
+
+class InsufficientStockError(Exception):
+    """Not enough compatible units in stock to cover the request (BLOOD-16)."""
+
+    def __init__(self, requested: int, available: int):
+        super().__init__(f"Requested {requested} units but only {available} compatible units are available")
+        self.requested = requested
+        self.available = available
+
+
+class StockChangedError(Exception):
+    """Some chosen units were allocated to someone else first. The caller can retry."""
+
+    def __init__(self) -> None:
+        super().__init__("Some of the chosen units were just allocated to another request. Please try again.")
+
+
+@dataclass(frozen=True)
+class MatchPreview:
+    """Result of a cross-match look-up. Nothing is reserved by a preview."""
+
+    request_id: int
+    requested_quantity: int
+    units: Sequence[UnitLike]
+    sufficient: bool
 
 
 @dataclass(frozen=True)

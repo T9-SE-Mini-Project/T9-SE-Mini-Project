@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, String
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, String, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from .models import BLOOD_GROUPS, COMPONENTS, STATUS_PENDING, URGENCY_LEVELS
@@ -47,6 +47,26 @@ class BloodRequestRecord(Base):
     notes: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     status: Mapped[str] = mapped_column(String(12), nullable=False, default=STATUS_PENDING)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class AllocationRecord(Base):
+    """Which blood units were allocated to which request (BLOOD-16).
+
+    `unit_id` is the bag ID owned by the inventory module. It is stored as plain text with
+    no foreign key, because this module must not depend on another module's tables.
+    The unique constraint is a safety net: one unit can never belong to two requests.
+    """
+
+    __tablename__ = "blood_request_units"
+    __table_args__ = (
+        UniqueConstraint("unit_id", name="uq_blood_request_units_unit"),
+        Index("ix_blood_request_units_request", "request_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    request_id: Mapped[int] = mapped_column(Integer, ForeignKey("blood_requests.id"), nullable=False)
+    unit_id: Mapped[str] = mapped_column(String(50), nullable=False)
+    allocated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class RequestEventRecord(Base):

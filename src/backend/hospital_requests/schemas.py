@@ -1,7 +1,7 @@
 """Pydantic request/response schemas for /api/requests (BLOOD-15)."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, field_validator
@@ -34,6 +34,29 @@ class RejectIn(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 
     reason: str = Field(min_length=1, max_length=500)
+
+
+class UnitOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    unit_id: str
+    blood_group: str
+    component: str
+    expiry_date: datetime | date
+
+
+class MatchPreviewOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    request_id: int
+    requested_quantity: int
+    sufficient: bool
+    units: list[UnitOut]
+
+
+class AllocatedUnitsOut(BaseModel):
+    request_id: int
+    unit_ids: list[str]
 
 
 class RequestEventOut(BaseModel):

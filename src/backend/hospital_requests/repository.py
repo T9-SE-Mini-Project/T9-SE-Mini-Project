@@ -6,13 +6,13 @@ Transaction boundary: each public method commits its own unit of work.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Sequence
 
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from .models import BloodRequest, EVENT_SUBMITTED, RequestEvent, STATUS_PENDING
-from .orm import BloodRequestRecord, RequestEventRecord
+from .orm import AllocationRecord, BloodRequestRecord, RequestEventRecord
 from .schemas import SubmitRequestIn
 
 
@@ -120,11 +120,13 @@ class RequestRepository:
         actor_id: int,
         note: Optional[str],
         at: datetime,
+        unit_ids: Sequence[str] = (),
     ) -> bool:
-        """Atomically change status and record who did it.
+        """Atomically change status, record who did it and store any allocated unit ids.
 
         The UPDATE only matches while the row is still in `from_status`, so if two staff
         act on the same request at once, exactly one succeeds and the other gets False.
+        Status, history and allocations are saved in one transaction.
         """
         try:
             result = self._session.execute(
@@ -144,11 +146,21 @@ class RequestRepository:
                     created_at=at,
                 )
             )
+            for unit_id in unit_ids:
+                self._session.add(AllocationRecord(request_id=request_id, unit_id=unit_id, allocated_at=at))
             self._session.commit()
             return True
         except Exception:
             self._session.rollback()
             raise
+
+    def list_unit_ids(self, request_id: int) -> list[str]:
+        stmt = (
+            select(AllocationRecord.unit_id)
+            .where(AllocationRecord.request_id == request_id)
+            .order_by(AllocationRecord.id.asc())
+        )
+        return list(self._session.scalars(stmt))
 
     def list_events(self, request_id: int) -> list[RequestEvent]:
         stmt = (
