@@ -31,3 +31,13 @@ class Account(AuthBase):
     is_verified: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False
     )
+
+
+class LoginSession(AuthBase):
+    __tablename__ = "auth_sessions"
+
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, nullable=False, index=True
+    )
+    last_seen_at: Mapped[int] = mapped_column(Integer, nullable=False)
