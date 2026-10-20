@@ -16,3 +16,4 @@ class BloodBag(Base):
     blood_group: Mapped[str] = mapped_column(String(3), nullable=False)
     component: Mapped[str] = mapped_column(String(20), nullable=False)
     collection_date: Mapped[date] = mapped_column(Date, nullable=False)
+    expiry_date: Mapped[date] = mapped_column(Date, nullable=False)
