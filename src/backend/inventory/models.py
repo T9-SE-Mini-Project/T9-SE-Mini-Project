@@ -1,5 +1,5 @@
-from datetime import date
-from sqlalchemy import Date, Integer, String, UniqueConstraint
+from datetime import date, datetime
+from sqlalchemy import Date, DateTime, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -17,3 +17,14 @@ class BloodBag(Base):
     component: Mapped[str] = mapped_column(String(20), nullable=False)
     collection_date: Mapped[date] = mapped_column(Date, nullable=False)
     expiry_date: Mapped[date] = mapped_column(Date, nullable=False)
+    status: Mapped[str] = mapped_column(String(12), nullable=False, default="AVAILABLE")
+
+
+class InventoryEvent(Base):
+    __tablename__ = "inventory_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    unit_id: Mapped[str] = mapped_column(String(50), ForeignKey("blood_bags.unit_id"), nullable=False)
+    action: Mapped[str] = mapped_column(String(20), nullable=False)
+    actor_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
