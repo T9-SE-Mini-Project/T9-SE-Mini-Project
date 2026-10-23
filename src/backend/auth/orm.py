@@ -27,6 +27,10 @@ class Account(AuthBase):
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[str] = mapped_column(String(32), nullable=False)
     hospital_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    failed_login_attempts: Mapped[int] = mapped_column(
+        Integer, default=0, nullable=False
+    )
+    locked_until: Mapped[int | None] = mapped_column(Integer, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_verified: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False
@@ -58,4 +62,5 @@ class SignupOTP(AuthBase):
         default=0,
         nullable=False,
     )
+
 
