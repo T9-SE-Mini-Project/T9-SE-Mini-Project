@@ -1,6 +1,6 @@
 ﻿"""Database table owned by the authentication module."""
 
-from sqlalchemy import Boolean, CheckConstraint, Integer, String
+from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Integer, String
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -27,6 +27,10 @@ class Account(AuthBase):
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[str] = mapped_column(String(32), nullable=False)
     hospital_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    failed_login_attempts: Mapped[int] = mapped_column(
+        Integer, default=0, nullable=False
+    )
+    locked_until: Mapped[int | None] = mapped_column(Integer, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_verified: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False
@@ -41,3 +45,22 @@ class LoginSession(AuthBase):
         Integer, nullable=False, index=True
     )
     last_seen_at: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class SignupOTP(AuthBase):
+    __tablename__ = "auth_signup_otps"
+
+    user_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("auth_users.id"),
+        primary_key=True,
+    )
+    code_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    expires_at: Mapped[int] = mapped_column(Integer, nullable=False)
+    attempts: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
+    )
+
+
