@@ -46,3 +46,73 @@ def get_donation_history(db: Session, donor_id: int) -> list[DonationRecord]:
 
 def get_donation_history_for_current_donor(db: Session, authenticated_donor_id: int) -> list[DonationRecord]:
     return get_donation_history(db, authenticated_donor_id)
+
+
+from decimal import Decimal, InvalidOperation
+from sqlalchemy.exc import IntegrityError
+from .models import DonorProfile
+
+
+class DonorProfileError(ValueError):
+    """The donor profile cannot be saved."""
+
+
+def create_donor_profile(
+    db: Session,
+    donor_id: int,
+    full_name: str,
+    blood_group: str,
+    date_of_birth: date,
+    weight_kg: Decimal,
+    phone: str,
+) -> DonorProfile:
+    """Save one profile for an authenticated donor account."""
+    if not isinstance(donor_id, int) or isinstance(donor_id, bool) or donor_id <= 0:
+        raise DonorProfileError("Invalid donor ID.")
+
+    name = full_name.strip() if isinstance(full_name, str) else ""
+    contact = phone.strip() if isinstance(phone, str) else ""
+    if not name or not contact:
+        raise DonorProfileError("Name and phone are required.")
+    if blood_group not in BLOOD_GROUPS:
+        raise DonorProfileError("Invalid blood group.")
+    if (
+        not isinstance(date_of_birth, date)
+        or isinstance(date_of_birth, datetime)
+        or date_of_birth >= date.today()
+    ):
+        raise DonorProfileError("Date of birth must be in the past.")
+
+    try:
+        weight = Decimal(str(weight_kg))
+    except (InvalidOperation, ValueError, TypeError) as exc:
+        raise DonorProfileError("Invalid weight.") from exc
+    if not weight.is_finite() or weight <= 0 or weight > 999.99:
+        raise DonorProfileError("Weight must be positive and below 1000 kg.")
+
+    if db.get(DonorProfile, donor_id) is not None:
+        raise DonorProfileError("Donor profile already exists.")
+
+    profile = DonorProfile(
+        donor_id=donor_id,
+        full_name=name,
+        blood_group=blood_group,
+        date_of_birth=date_of_birth,
+        weight_kg=weight,
+        phone=contact,
+    )
+    try:
+        db.add(profile)
+        db.commit()
+        db.refresh(profile)
+    except IntegrityError as exc:
+        db.rollback()
+        raise DonorProfileError("Donor profile already exists.") from exc
+    return profile
+
+
+def get_donor_profile(db: Session, donor_id: int) -> DonorProfile | None:
+    """Look up a donor's profile using their authenticated account ID."""
+    if not isinstance(donor_id, int) or isinstance(donor_id, bool) or donor_id <= 0:
+        raise DonorProfileError("Invalid donor ID.")
+    return db.get(DonorProfile, donor_id)

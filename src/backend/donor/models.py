@@ -1,5 +1,5 @@
-from datetime import date, datetime
-from sqlalchemy import CheckConstraint, Date, DateTime, Integer, String, UniqueConstraint
+﻿from datetime import date, datetime
+from sqlalchemy import CheckConstraint, Date, DateTime, Integer, Numeric, String, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -22,3 +22,23 @@ class DonationRecord(Base):
     quantity_ml: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(12), nullable=False)
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+
+class DonorProfile(Base):
+    __tablename__ = "donor_profiles"
+    __table_args__ = (
+        CheckConstraint("weight_kg > 0", name="ck_donor_profile_weight_positive"),
+        CheckConstraint(
+            "blood_group IN ('A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-')",
+            name="ck_donor_profile_blood_group",
+        ),
+    )
+
+    # Matches the authenticated donor account ID and donation_history.donor_id.
+    donor_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    full_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    blood_group: Mapped[str] = mapped_column(String(3), nullable=False)
+    date_of_birth: Mapped[date] = mapped_column(Date, nullable=False)
+    weight_kg: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False)
+    phone: Mapped[str] = mapped_column(String(20), nullable=False)
