@@ -19,6 +19,10 @@ python -m src.backend.cli create-admin --email admin@example.com   # first admin
 uvicorn src.backend.main:app --reload
 ```
 
+To try the app with sample data, run `python -m src.backend.cli seed-demo`. It creates
+`demo.donor@example.com`, `demo.staff@example.com`, `demo.hospital@example.com` and
+`demo.admin@example.com`, all with password `Password123!` (local development only).
+
 Interactive API docs: http://127.0.0.1:8000/docs
 
 With the default settings the app uses a local SQLite file (`bbms.db`) and creates the

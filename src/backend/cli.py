@@ -3,10 +3,12 @@
     python -m src.backend.cli create-admin --email admin@example.com
     python -m src.backend.cli expire-units --actor-id 1
     python -m src.backend.cli send-reminders
+    python -m src.backend.cli seed-demo
 
 `create-admin` creates the first admin, who can then create other accounts through
 POST /api/admin/accounts. `expire-units` and `send-reminders` are meant to be run on a
-schedule (e.g. cron, daily / hourly).
+schedule (e.g. cron, daily / hourly). `seed-demo` fills a local database with demo
+accounts and data (development only).
 """
 from __future__ import annotations
 
@@ -18,6 +20,7 @@ from datetime import timedelta
 from .auth.accounts import AccountError, create_account
 from .config import load_app_settings
 from .database import create_all_tables, create_db_engine, create_session_factory
+from .demo import DEMO_PASSWORD, seed_demo
 from .drives.service import send_due_reminders
 from .inventory.service import expire_blood_units
 from .notifications import LoggingNotifier
@@ -34,6 +37,7 @@ def main(argv: list[str] | None = None) -> int:
     expire.add_argument("--actor-id", type=int, required=True, help="staff/admin account ID recorded in the audit log")
 
     commands.add_parser("send-reminders", help="send due drive slot reminders (BBS-F-042)")
+    commands.add_parser("seed-demo", help="add demo accounts and sample data (development only)")
 
     args = parser.parse_args(argv)
     settings = load_app_settings()
@@ -60,6 +64,11 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "send-reminders":
             run = send_due_reminders(db, LoggingNotifier(), timedelta(hours=settings.reminder_window_hours))
             print(f"Sent {len(run.booking_ids)} reminder(s).")
+        elif args.command == "seed-demo":
+            accounts = seed_demo(db)
+            print(f"Demo accounts (password: {DEMO_PASSWORD}):")
+            for email, role in accounts:
+                print(f"  {role:<17} {email}")
     return 0
 
 
