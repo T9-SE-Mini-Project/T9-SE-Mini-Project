@@ -9,7 +9,8 @@ by the app and must be a dependency factory:
     returns the authenticated user (an object with `id` and `hospital_id`).
     require_role("blood_bank_staff") -> same, returning a user with `id`.
 
-`cross_match` is the inventory module's CrossMatchInterface implementation.
+`cross_match` is the inventory module's CrossMatchInterface implementation
+(`inventory.cross_match.InventoryCrossMatch`).
 """
 from __future__ import annotations
 
@@ -31,6 +32,7 @@ from .models import (
     StaffUser,
     Status,
     StockChangedError,
+    UnitsUnavailableError,
 )
 from .repository import RequestRepository
 from .schemas import (
@@ -45,7 +47,13 @@ from .service import RequestService
 
 RoleGuard = Callable[[str], Callable[..., object]]
 
-_DOMAIN_ERRORS = (NotFoundError, InvalidTransitionError, InsufficientStockError, StockChangedError)
+_DOMAIN_ERRORS = (
+    NotFoundError,
+    InvalidTransitionError,
+    InsufficientStockError,
+    StockChangedError,
+    UnitsUnavailableError,
+)
 
 
 def _to_http(exc: Exception) -> HTTPException:

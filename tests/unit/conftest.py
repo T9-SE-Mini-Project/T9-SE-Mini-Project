@@ -1,7 +1,6 @@
 """Shared pytest fixtures for the hospital_requests tests."""
 from __future__ import annotations
 
-import support  # noqa: F401  (also puts src/backend on sys.path)
 from support import NOW, OTHER_HOSPITAL_USER, SETTINGS, STAFF, USER, FakeInventory, FakeUser, default_units
 
 import pytest
@@ -11,10 +10,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from hospital_requests.orm import Base
-from hospital_requests.repository import RequestRepository
-from hospital_requests.routes import create_router
-from hospital_requests.service import RequestService
+from src.backend.hospital_requests.orm import Base
+from src.backend.hospital_requests.repository import RequestRepository
+from src.backend.hospital_requests.routes import create_router
+from src.backend.hospital_requests.service import RequestService
 
 
 @pytest.fixture

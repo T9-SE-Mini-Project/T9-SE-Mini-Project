@@ -1,11 +1,10 @@
 ﻿"""Database table owned by the authentication module."""
 
 from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Integer, String
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column
 
-
-class AuthBase(DeclarativeBase):
-    """Metadata for tables owned by auth."""
+# Kept under its old name; the shared Base puts these tables in the one app metadata.
+from ..database import Base as AuthBase
 
 
 class Account(AuthBase):
@@ -42,7 +41,7 @@ class LoginSession(AuthBase):
 
     token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
     user_id: Mapped[int] = mapped_column(
-        Integer, nullable=False, index=True
+        Integer, ForeignKey("auth_users.id"), nullable=False, index=True
     )
     last_seen_at: Mapped[int] = mapped_column(Integer, nullable=False)
 

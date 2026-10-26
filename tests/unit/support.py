@@ -1,17 +1,13 @@
 """Shared test helpers: constants, fake users and an in-memory fake of the inventory module."""
 from __future__ import annotations
 
-import sys
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
-from pathlib import Path
 from typing import Callable, Optional, Sequence
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src" / "backend"))
-
-from hospital_requests.compatibility import is_compatible  # noqa: E402
-from hospital_requests.config import Settings  # noqa: E402
-from hospital_requests.schemas import SubmitRequestIn  # noqa: E402
+from src.backend.hospital_requests.compatibility import is_compatible
+from src.backend.hospital_requests.config import Settings
+from src.backend.hospital_requests.schemas import SubmitRequestIn
 
 SETTINGS = Settings(max_units_per_request=10)
 
@@ -78,6 +74,7 @@ class FakeInventory:
     def __init__(self, units: Sequence[FakeUnit]):
         self.units = {u.unit_id: u for u in units}
         self.allocated: dict[str, int] = {}
+        self.dispatched: set[str] = set()
         self.allocate_calls = 0
         self.after_allocate: Optional[Callable[[], None]] = None
 
@@ -106,3 +103,9 @@ class FakeInventory:
         for uid in unit_ids:
             if self.allocated.get(uid) == request_id:
                 del self.allocated[uid]
+
+    def dispatch_units(self, unit_ids: Sequence[str], request_id: int) -> bool:
+        if not unit_ids or any(self.allocated.get(uid) != request_id for uid in unit_ids):
+            return False
+        self.dispatched.update(unit_ids)
+        return True

@@ -6,8 +6,8 @@ from datetime import timedelta
 import pytest
 from pydantic import ValidationError
 
-from hospital_requests.models import NotFoundError, RequestRuleError
-from hospital_requests.schemas import SubmitRequestIn
+from src.backend.hospital_requests.models import NotFoundError, RequestRuleError
+from src.backend.hospital_requests.schemas import SubmitRequestIn
 from support import (
     HOSPITAL_H, NOW, OTHER_HOSPITAL_USER, STAFF_H, USER, naive, submit, valid_payload,
 )

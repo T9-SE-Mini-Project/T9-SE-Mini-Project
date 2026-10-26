@@ -1,13 +1,12 @@
+"""Blood bag logging (BLOOD-12), component expiry (BLOOD-13) and expiry monitoring (BLOOD-14)."""
 from datetime import date, datetime, timedelta, timezone
 from uuid import uuid4
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .models import BloodBag, InventoryEvent
-
-BLOOD_GROUPS = {"A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"}
-COMPONENTS = {"Whole Blood", "RBC", "Platelets", "Plasma"}
+from ..blood import BLOOD_GROUPS, COMPONENTS
+from .models import STATUS_ALLOCATED, STATUS_AVAILABLE, STATUS_EXPIRED, BloodBag, InventoryEvent
 
 SHELF_LIFE_DAYS = {
     "Whole Blood": 35,
@@ -37,7 +36,7 @@ def add_blood_bag(db: Session, blood_group: str, component: str, collection_date
         component=component,
         collection_date=collection_date,
         expiry_date=expiry_date,
-        status="EXPIRED" if expiry_date <= date.today() else "AVAILABLE",
+        status=STATUS_EXPIRED if expiry_date <= date.today() else STATUS_AVAILABLE,
     )
     db.add(bag)
     db.commit()
@@ -52,24 +51,28 @@ def get_blood_bag(db: Session, unit_id: str) -> BloodBag | None:
 def list_available_blood_bags(db: Session, today: date | None = None) -> list[BloodBag]:
     current_date = today if today is not None else date.today()
     return list(db.scalars(select(BloodBag).where(
-        BloodBag.status == "AVAILABLE",
+        BloodBag.status == STATUS_AVAILABLE,
         BloodBag.expiry_date > current_date,
     ).order_by(BloodBag.expiry_date, BloodBag.id)).all())
 
 
 def expire_blood_units(db: Session, actor_id: int, today: date | None = None) -> int:
+    """Mark every available or allocated bag past its expiry date as EXPIRED, with an audit entry.
+
+    Allocated bags are included so an expired unit can never be dispatched to a hospital.
+    """
     if not isinstance(actor_id, int) or isinstance(actor_id, bool) or actor_id <= 0:
         raise ValueError("A valid staff actor ID is required")
     current_date = today if today is not None else date.today()
     expired = list(db.scalars(select(BloodBag).where(
-        BloodBag.status == "AVAILABLE",
+        BloodBag.status.in_((STATUS_AVAILABLE, STATUS_ALLOCATED)),
         BloodBag.expiry_date <= current_date,
     )).all())
     for bag in expired:
-        bag.status = "EXPIRED"
+        bag.status = STATUS_EXPIRED
         db.add(InventoryEvent(
             unit_id=bag.unit_id,
-            action="EXPIRED",
+            action=STATUS_EXPIRED,
             actor_id=actor_id,
             created_at=datetime.now(timezone.utc),
         ))

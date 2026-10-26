@@ -1,8 +1,7 @@
 """SQLAlchemy mappings for the tables owned by this module.
 
-NOTE: `Base` is a placeholder. The shared DB schema has no agreed owner yet; once the
-team defines one shared declarative Base, import it here instead and generate the
-Alembic migration from it. Do not edit src/database/schema.sql from this module.
+Tables use the shared declarative `Base` from `database.py`. They deliberately have no
+foreign keys into other modules' tables (see AllocationRecord).
 """
 from __future__ import annotations
 
@@ -10,13 +9,10 @@ from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, String, UniqueConstraint
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column
 
+from ..database import Base
 from .models import BLOOD_GROUPS, COMPONENTS, STATUS_PENDING, URGENCY_LEVELS
-
-
-class Base(DeclarativeBase):
-    pass
 
 
 def _in_list(column: str, values: tuple[str, ...]) -> str:

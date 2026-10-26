@@ -5,15 +5,12 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal, Optional, Protocol, Sequence, get_args
 
+from ..blood import BLOOD_GROUPS, COMPONENTS, BloodGroup, Component
 from .cross_match import UnitLike
 
-BloodGroup = Literal["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]
-Component = Literal["Whole Blood", "RBC", "Platelets", "Plasma"]
 Urgency = Literal["routine", "urgent", "emergency"]
 Status = Literal["PENDING", "APPROVED", "REJECTED", "DISPATCHED"]
 
-BLOOD_GROUPS: tuple[str, ...] = get_args(BloodGroup)
-COMPONENTS: tuple[str, ...] = get_args(Component)
 URGENCY_LEVELS: tuple[str, ...] = get_args(Urgency)
 
 STATUS_PENDING = "PENDING"
@@ -76,6 +73,15 @@ class InsufficientStockError(Exception):
         super().__init__(f"Requested {requested} units but only {available} compatible units are available")
         self.requested = requested
         self.available = available
+
+
+class UnitsUnavailableError(Exception):
+    """The units allocated to an approved request can no longer be dispatched (e.g. expired)."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "Some allocated units are no longer available (they may have expired), so the request cannot be dispatched."
+        )
 
 
 class StockChangedError(Exception):

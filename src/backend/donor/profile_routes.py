@@ -6,6 +6,7 @@ from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
+from .eligibility import calculate_age
 from .service import (
     DonorProfileError,
     create_donor_profile,
@@ -32,17 +33,12 @@ class ProfileOutput(BaseModel):
 
 
 def _profile_output(profile) -> ProfileOutput:
-    today = date.today()
-    born = profile.date_of_birth
-    age = today.year - born.year - (
-        (today.month, today.day) < (born.month, born.day)
-    )
     return ProfileOutput(
         donor_id=profile.donor_id,
         full_name=profile.full_name,
         blood_group=profile.blood_group,
-        date_of_birth=born,
-        age=age,
+        date_of_birth=profile.date_of_birth,
+        age=calculate_age(profile.date_of_birth, date.today()),
         weight_kg=profile.weight_kg,
         phone=profile.phone,
     )

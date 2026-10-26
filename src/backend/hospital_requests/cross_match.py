@@ -10,6 +10,13 @@ How the two modules work together when staff approve a request:
     2. allocate_units()         - reserve the chosen units, all-or-nothing
     3. hospital_requests saves the APPROVED status and the unit ids in its own tables
     4. if step 3 fails or loses a race, release_units() hands the units back
+
+And when staff dispatch an approved request (BBS-F-032):
+
+    5. dispatch_units()         - mark the allocated units as sent, all-or-nothing
+    6. hospital_requests saves the DISPATCHED status
+
+The implementation is `inventory.cross_match.InventoryCrossMatch`.
 """
 from __future__ import annotations
 
@@ -70,4 +77,12 @@ class CrossMatchInterface(Protocol):
 
         Used when the request could not be approved after the units were reserved.
         Must be safe to call twice (idempotent).
+        """
+
+    def dispatch_units(self, unit_ids: Sequence[str], request_id: int) -> bool:
+        """Mark the units allocated to `request_id` as dispatched, all or nothing.
+
+        Return False, changing nothing, if any unit is no longer allocated to this
+        request or has expired, so expired blood is never sent out. Units already
+        dispatched for this same request count as success (safe to retry).
         """

@@ -1,0 +1,4 @@
+[tool.pytest.ini_options]
+# Lets every test import the backend the same way: `from src.backend.<module> import ...`
+pythonpath = ["."]
+testpaths = ["tests"]

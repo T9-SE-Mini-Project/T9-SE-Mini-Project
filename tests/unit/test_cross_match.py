@@ -4,9 +4,9 @@ from __future__ import annotations
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from hospital_requests.models import InsufficientStockError, InvalidTransitionError, NotFoundError, StockChangedError
-from hospital_requests.schemas import SubmitRequestIn
-from hospital_requests.service import RequestService
+from src.backend.hospital_requests.models import InsufficientStockError, InvalidTransitionError, NotFoundError, StockChangedError
+from src.backend.hospital_requests.schemas import SubmitRequestIn
+from src.backend.hospital_requests.service import RequestService
 from support import (
     NOW, SETTINGS, STAFF, STAFF_H, USER, FakeInventory, FakeUnit, create_via_api, submit, valid_payload,
 )
