@@ -32,6 +32,40 @@ python -m src.backend.cli expire-units --actor-id <staff or admin id>   # daily,
 python -m src.backend.cli send-reminders                                # hourly, BBS-F-042
 ```
 
+## Running the frontend
+
+A React + Vite dashboard in `src/frontend/`. Start the backend first, then:
+
+```bash
+cd src/frontend
+pnpm install        # or: npm install
+pnpm dev            # http://localhost:5173
+```
+
+The dev server forwards `/api` to the backend on port 8000 (`vite.config.js`), so no CORS
+setup is needed. Set `VITE_API_TARGET` to point it somewhere else.
+
+After login each role gets one read-only dashboard built from the existing endpoints:
+
+| Role | Dashboard shows |
+|---|---|
+| Donor | blood group, whether they can donate (and why not), donation history, upcoming drives; a profile form until the profile exists |
+| Blood bank staff | available units, stock by blood group and component, units expiring within 7 days, pending requests, drives |
+| Hospital rep | the hospital's requests and their status |
+| Admin | API status and drive bookings |
+
+The theme is red and white (light) or red and black (dark). It follows the system setting,
+and the header toggle overrides it. Colours are CSS variables at the top of `src/styles.css`.
+
+```
+src/frontend/src/
+  main.jsx, App.jsx     entry point; picks the dashboard for the logged-in role
+  api.js                fetch wrapper (bearer token, error messages, logout on 401)
+  pages/Login.jsx       login + donor signup / OTP verification
+  dashboards/           one component per role, plus shared pieces
+  components/           stat cards, badges, blood group bars, theme toggle
+```
+
 ## Running the tests
 
 ```bash
@@ -111,4 +145,5 @@ Conventions used across modules:
 - Recording a donation commits the history row and the inventory bag separately.
 - An approved request whose allocated unit expires cannot be dispatched and has no
   re-allocation flow yet.
-- Frontend (React + Vite).
+- Frontend actions (approve / dispatch requests, book slots, submit requests, log bags):
+  the dashboards are read-only for now; the API already supports all of these.

@@ -19,3 +19,7 @@ coverage.xml
 *.db
 *.sqlite
 *.sqlite3
+
+# Frontend
+node_modules/
+dist/
