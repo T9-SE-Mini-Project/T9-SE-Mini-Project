@@ -27,6 +27,7 @@ from .models import (
     RequestRuleError,
     StaffUser,
     StockChangedError,
+    UnitsUnavailableError,
 )
 from .repository import RequestRepository
 from .schemas import SubmitRequestIn
@@ -128,8 +129,11 @@ class RequestService:
         return self._transition(staff, request_id, STATUS_REJECTED, note=reason)
 
     def dispatch(self, staff: StaffUser, request_id: int) -> BloodRequest:
-        """APPROVED -> DISPATCHED."""
-        return self._transition(staff, request_id, STATUS_DISPATCHED)
+        """APPROVED -> DISPATCHED, marking the allocated units as sent in inventory (BBS-F-032).
+
+        Raises UnitsUnavailableError if an allocated unit has expired or was released.
+        """
+        return self._transition(staff, request_id, STATUS_DISPATCHED, dispatch=True)
 
     def get_allocated_units(self, request_id: int) -> list[str]:
         """Bag IDs allocated to the request, i.e. what to physically send."""
@@ -162,9 +166,14 @@ class RequestService:
         *,
         note: Optional[str] = None,
         allocate: bool = False,
+        dispatch: bool = False,
     ) -> BloodRequest:
         request = self._load(request_id)
         self._require_transition(request, target)
+        if dispatch:
+            # Inventory first: if the status save below fails, a retry is safe because
+            # dispatch_units accepts units already dispatched for this request.
+            self._dispatch_units(request_id)
         unit_ids = self._allocate_units(request) if allocate else []
         try:
             applied = self._repo.transition(
@@ -226,6 +235,11 @@ class RequestService:
         if not self._cross_match.allocate_units(unit_ids, request.id):
             raise StockChangedError()
         return unit_ids
+
+    def _dispatch_units(self, request_id: int) -> None:
+        unit_ids = self._repo.list_unit_ids(request_id)
+        if not self._cross_match.dispatch_units(unit_ids, request_id):
+            raise UnitsUnavailableError()
 
     def _release_units(self, unit_ids: Sequence[str], request_id: int) -> None:
         if unit_ids:

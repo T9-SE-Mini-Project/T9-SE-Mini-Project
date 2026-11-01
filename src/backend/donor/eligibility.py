@@ -8,21 +8,21 @@ A donor may donate only if ALL of these hold (SRS):
 `check_eligibility` is a pure function (no database), so the rules are easy to test.
 `check_donor_eligibility` adds the database part: it looks up the donor's last completed
 donation in `donation_history`.
-
-Date of birth and weight belong to the donor profile (BLOOD-9), which is not in this module
-yet, so callers pass them in. Once the profile exists, load it and call the function below.
+`check_profile_eligibility` is what the app uses: it reads date of birth and weight from
+the donor's saved profile (BLOOD-9), so callers only pass the donor ID.
 """
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
-from typing import Optional
+from decimal import Decimal
+from typing import Optional, Union
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from .models import DonationRecord
+from .models import DonationRecord, DonorProfile
 
 MIN_AGE = 18
 MAX_AGE = 65
@@ -51,7 +51,7 @@ def calculate_age(date_of_birth: date, today: date) -> int:
 
 def check_eligibility(
     date_of_birth: date,
-    weight_kg: float,
+    weight_kg: Union[float, Decimal],
     last_donation_date: Optional[date] = None,
     today: Optional[date] = None,
 ) -> EligibilityResult:
@@ -106,12 +106,28 @@ def check_donor_eligibility(
     db: Session,
     donor_id: int,
     date_of_birth: date,
-    weight_kg: float,
+    weight_kg: Union[float, Decimal],
     today: Optional[date] = None,
 ) -> EligibilityResult:
     """Eligibility for a donor, using their donation history for the waiting-period rule."""
     last_donation = get_last_donation_date(db, donor_id)
     return check_eligibility(date_of_birth, weight_kg, last_donation, today)
+
+
+class ProfileMissingError(LookupError):
+    """The donor has not created a profile yet, so eligibility cannot be checked."""
+
+
+def check_profile_eligibility(db: Session, donor_id: int, today: Optional[date] = None) -> EligibilityResult:
+    """Eligibility for a donor, using their saved profile and donation history.
+
+    Raises ProfileMissingError if the donor has no profile (BLOOD-9) yet.
+    """
+    _require_donor_id(donor_id)
+    profile = db.get(DonorProfile, donor_id)
+    if profile is None:
+        raise ProfileMissingError("Create a donor profile before checking eligibility")
+    return check_donor_eligibility(db, donor_id, profile.date_of_birth, profile.weight_kg, today)
 
 
 def _require_donor_id(donor_id: int) -> None:
@@ -125,11 +141,12 @@ def _require_date(value: date, name: str) -> None:
         raise ValueError(f"Invalid {name}")
 
 
-def _require_weight(weight_kg: float) -> None:
+def _require_weight(weight_kg: Union[float, Decimal]) -> None:
     # bool is a subclass of int, so exclude it explicitly. NaN and infinity are not weights.
+    # Decimal is allowed because the profile stores weight as NUMERIC, which loads as Decimal.
     if (
         isinstance(weight_kg, bool)
-        or not isinstance(weight_kg, (int, float))
+        or not isinstance(weight_kg, (int, float, Decimal))
         or not math.isfinite(weight_kg)
         or weight_kg <= 0
     ):

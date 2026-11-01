@@ -3,9 +3,8 @@ from __future__ import annotations
 
 import pytest
 
-import support  # noqa: F401  (puts src/backend on sys.path)
-from hospital_requests.compatibility import compatible_donor_groups, is_compatible
-from hospital_requests.models import BLOOD_GROUPS, COMPONENTS
+from src.backend.hospital_requests.compatibility import compatible_donor_groups, is_compatible
+from src.backend.hospital_requests.models import BLOOD_GROUPS, COMPONENTS
 
 RBC_TABLE = {
     "O-": {"O-"},

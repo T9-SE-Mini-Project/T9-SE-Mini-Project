@@ -1,12 +1,15 @@
+"""Donation history (BLOOD-10) and donor profile (BLOOD-9) data access."""
 from datetime import date, datetime, timezone
+from decimal import Decimal, InvalidOperation
 from uuid import uuid4
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from .models import DonationRecord
+from ..blood import BLOOD_GROUPS
+from .models import DonationRecord, DonorProfile
 
-BLOOD_GROUPS = {"A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"}
 DONATION_STATUSES = {"COMPLETED", "DEFERRED", "CANCELLED"}
 
 
@@ -46,11 +49,6 @@ def get_donation_history(db: Session, donor_id: int) -> list[DonationRecord]:
 
 def get_donation_history_for_current_donor(db: Session, authenticated_donor_id: int) -> list[DonationRecord]:
     return get_donation_history(db, authenticated_donor_id)
-
-
-from decimal import Decimal, InvalidOperation
-from sqlalchemy.exc import IntegrityError
-from .models import DonorProfile
 
 
 class DonorProfileError(ValueError):

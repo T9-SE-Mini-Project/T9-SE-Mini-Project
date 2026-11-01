@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import pytest
 
-from hospital_requests.models import InvalidTransitionError, NotFoundError
-from hospital_requests.schemas import SubmitRequestIn
-from support import HOSPITAL_H, NOW, OTHER_STAFF, STAFF, STAFF_H, create_via_api, naive, submit, valid_payload
+from src.backend.hospital_requests.models import InvalidTransitionError, NotFoundError, UnitsUnavailableError
+from src.backend.hospital_requests.schemas import SubmitRequestIn
+from support import HOSPITAL_H, NOW, OTHER_STAFF, STAFF, STAFF_H, USER, create_via_api, naive, submit, valid_payload
 
 # ---------- service ----------
 
@@ -29,6 +29,23 @@ def test_full_flow_pending_approved_dispatched(service):
     service.approve(STAFF, req.id)
     assert service.dispatch(OTHER_STAFF, req.id).status == "DISPATCHED"
     assert [e.action for e in service.get_history(req.id)] == ["SUBMITTED", "APPROVED", "DISPATCHED"]
+
+
+def test_dispatch_marks_the_allocated_units_as_sent(service, inventory):
+    req = submit(service)
+    service.approve(STAFF, req.id)
+    service.dispatch(STAFF, req.id)
+    assert inventory.dispatched == set(service.get_allocated_units(req.id))
+
+
+def test_dispatch_refused_when_allocated_units_are_unavailable(service, inventory, monkeypatch):
+    """E.g. an allocated unit expired before dispatch: expired blood is never sent."""
+    req = submit(service)
+    service.approve(STAFF, req.id)
+    monkeypatch.setattr(inventory, "dispatch_units", lambda ids, request_id: False)
+    with pytest.raises(UnitsUnavailableError):
+        service.dispatch(STAFF, req.id)
+    assert service.get_request(USER, req.id).status == "APPROVED"
 
 
 def test_cannot_dispatch_before_approval(service):
