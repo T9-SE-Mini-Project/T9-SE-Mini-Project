@@ -1,10 +1,10 @@
-﻿from datetime import date, datetime
-from sqlalchemy import CheckConstraint, Date, DateTime, Integer, Numeric, String, UniqueConstraint
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+"""Donation history (BLOOD-10) and donor profile (BLOOD-9) tables."""
+from datetime import date, datetime
+from sqlalchemy import CheckConstraint, Date, DateTime, ForeignKey, Integer, Numeric, String, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column
 
-
-class Base(DeclarativeBase):
-    pass
+from ..auth import orm as _auth_orm  # noqa: F401  (registers auth_users for the foreign keys)
+from ..database import Base
 
 
 class DonationRecord(Base):
@@ -16,13 +16,12 @@ class DonationRecord(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     donation_id: Mapped[str] = mapped_column(String(40), nullable=False)
-    donor_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    donor_id: Mapped[int] = mapped_column(Integer, ForeignKey("auth_users.id"), nullable=False, index=True)
     donation_date: Mapped[date] = mapped_column(Date, nullable=False)
     blood_group: Mapped[str] = mapped_column(String(3), nullable=False)
     quantity_ml: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(12), nullable=False)
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-
 
 
 class DonorProfile(Base):
@@ -36,7 +35,7 @@ class DonorProfile(Base):
     )
 
     # Matches the authenticated donor account ID and donation_history.donor_id.
-    donor_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    donor_id: Mapped[int] = mapped_column(Integer, ForeignKey("auth_users.id"), primary_key=True)
     full_name: Mapped[str] = mapped_column(String(100), nullable=False)
     blood_group: Mapped[str] = mapped_column(String(3), nullable=False)
     date_of_birth: Mapped[date] = mapped_column(Date, nullable=False)
