@@ -1,7 +1,7 @@
-"""Donor endpoints: eligibility (BLOOD-10, BBS-F-011) and donation history (BBS-F-012).
+"""Donor endpoints: eligibility (BLOOD-10, BBS-F-011), donation history (BBS-F-012), and emergency call-out (BLOOD-26).
 
 Donors see their own data only, using the ID of the logged-in account. Staff record
-donations and can look up any donor's history.
+donations, look up donor histories, and trigger emergency call-outs.
 """
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from .donations import DonationNotAllowedError, record_donation_for_donor
 from .eligibility import ProfileMissingError, check_profile_eligibility
-from .service import get_donation_history
+from .service import get_donation_history, trigger_emergency_callout
 
 DonationStatus = Literal["COMPLETED", "DEFERRED", "CANCELLED"]
 
@@ -48,6 +48,14 @@ class RecordedDonationOut(BaseModel):
     donation: DonationOut
     # Bag added to inventory for a completed donation, else None.
     unit_id: Optional[str]
+
+
+class EmergencyCalloutIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    blood_type: str = Field(..., min_length=2, max_length=3)
+    units_needed: int = Field(..., gt=0)
+    hospital_name: str = Field(..., min_length=2)
 
 
 def create_donor_router(get_session, require_role):
@@ -113,6 +121,30 @@ def create_donor_router(get_session, require_role):
         return RecordedDonationOut(
             donation=DonationOut.model_validate(recorded.donation),
             unit_id=recorded.blood_bag.unit_id if recorded.blood_bag else None,
+        )
+
+    @router.post(
+        "/emergency-callout",
+        status_code=status.HTTP_200_OK,
+    )
+    def emergency_callout(
+        payload: EmergencyCalloutIn,
+        staff=Depends(staff_only),
+        db=Depends(get_session),
+    ):
+        """BLOOD-26: Trigger emergency donor call-out for critical blood shortages (Staff only)."""
+        valid_types = {"A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"}
+        if payload.blood_type not in valid_types:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid blood type specified.",
+            )
+
+        return trigger_emergency_callout(
+            db,
+            required_blood_type=payload.blood_type,
+            units_needed=payload.units_needed,
+            hospital_name=payload.hospital_name,
         )
 
     return router

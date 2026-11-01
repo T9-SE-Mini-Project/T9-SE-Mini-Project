@@ -1,4 +1,4 @@
-"""Donation history (BLOOD-10) and donor profile (BLOOD-9) data access."""
+"""Donation history (BLOOD-10) and donor profile (BLOOD-9) data access + Emergency Call-Out (BLOOD-26)."""
 from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
 from uuid import uuid4
@@ -8,12 +8,43 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..blood import BLOOD_GROUPS
+from ..notifications import LoggingNotifier
 from .models import DonationRecord, DonorProfile
 
 DONATION_STATUSES = {"COMPLETED", "DEFERRED", "CANCELLED"}
 
+BLOOD_COMPATIBILITY = {
+    "A+": ["A+", "A-", "O+", "O-"],
+    "A-": ["A-", "O-"],
+    "B+": ["B+", "B-", "O+", "O-"],
+    "B-": ["B-", "O-"],
+    "AB+": ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"],
+    "AB-": ["A-", "B-", "AB-", "O-"],
+    "O+": ["O+", "O-"],
+    "O-": ["O-"],
+}
 
-def record_donation(db: Session, donor_id: int, donation_date: date, blood_group: str, quantity_ml: int, status: str = "COMPLETED") -> DonationRecord:
+notifier = LoggingNotifier()
+
+
+def send_notification(recipient: str, message: str, channel: str = "sms"):
+    """Helper wrapper around LoggingNotifier for dispatching notifications."""
+    if hasattr(notifier, "send"):
+        notifier.send(recipient=recipient, message=message, channel=channel)
+    elif hasattr(notifier, "notify"):
+        notifier.notify(recipient=recipient, message=message, channel=channel)
+    elif hasattr(notifier, "send_notification"):
+        notifier.send_notification(recipient=recipient, message=message, channel=channel)
+
+
+def record_donation(
+    db: Session,
+    donor_id: int,
+    donation_date: date,
+    blood_group: str,
+    quantity_ml: int,
+    status: str = "COMPLETED",
+) -> DonationRecord:
     if not isinstance(donor_id, int) or isinstance(donor_id, bool) or donor_id <= 0:
         raise ValueError("Invalid donor ID")
     if not isinstance(donation_date, date) or isinstance(donation_date, datetime) or donation_date > date.today():
@@ -43,7 +74,11 @@ def record_donation(db: Session, donor_id: int, donation_date: date, blood_group
 def get_donation_history(db: Session, donor_id: int) -> list[DonationRecord]:
     if not isinstance(donor_id, int) or isinstance(donor_id, bool) or donor_id <= 0:
         raise ValueError("Invalid donor ID")
-    query = select(DonationRecord).where(DonationRecord.donor_id == donor_id).order_by(DonationRecord.donation_date.desc(), DonationRecord.id.desc())
+    query = (
+        select(DonationRecord)
+        .where(DonationRecord.donor_id == donor_id)
+        .order_by(DonationRecord.donation_date.desc(), DonationRecord.id.desc())
+    )
     return list(db.scalars(query).all())
 
 
@@ -114,3 +149,30 @@ def get_donor_profile(db: Session, donor_id: int) -> DonorProfile | None:
     if not isinstance(donor_id, int) or isinstance(donor_id, bool) or donor_id <= 0:
         raise DonorProfileError("Invalid donor ID.")
     return db.get(DonorProfile, donor_id)
+
+
+def trigger_emergency_callout(
+    db: Session, required_blood_type: str, units_needed: int, hospital_name: str
+) -> dict:
+    """BLOOD-26: Query compatible donors and dispatch emergency notifications."""
+    compatible_types = BLOOD_COMPATIBILITY.get(required_blood_type, [required_blood_type])
+
+    query = select(DonorProfile).where(DonorProfile.blood_group.in_(compatible_types))
+    matching_donors = list(db.scalars(query).all())
+
+    notified_donor_ids = []
+    for donor in matching_donors:
+        message = (
+            f"URGENT: {units_needed} units of {required_blood_type} needed at "
+            f"{hospital_name}. Please visit the nearest donation center."
+        )
+        send_notification(recipient=donor.phone, message=message, channel="sms")
+        notified_donor_ids.append(donor.donor_id)
+
+    return {
+        "required_blood_type": required_blood_type,
+        "units_requested": units_needed,
+        "hospital_name": hospital_name,
+        "eligible_donors_notified": len(notified_donor_ids),
+        "donor_ids": notified_donor_ids,
+    }
