@@ -1,12 +1,12 @@
-"""Inventory endpoints for blood bank staff (BLOOD-12, BLOOD-13, BLOOD-14)."""
 from __future__ import annotations
 
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict
 
 from ..blood import BloodGroup, Component
+from .low_stock import get_low_stock_alerts
 from .service import add_blood_bag, expire_blood_units, get_blood_bag, list_available_blood_bags
 
 
@@ -25,13 +25,20 @@ class BloodBagOut(BaseModel):
     blood_group: str
     component: str
     collection_date: date
-    # Filled in automatically from the component's shelf life (AC-021).
     expiry_date: date
     status: str
 
 
 class ExpiryRunOut(BaseModel):
     expired_count: int
+
+
+class LowStockAlertOut(BaseModel):
+    blood_group: str
+    component: str
+    available_units: int
+    threshold: int
+    level: str
 
 
 def create_inventory_router(get_session, require_role):
@@ -47,8 +54,11 @@ def create_inventory_router(get_session, require_role):
 
     @router.get("/bags", response_model=list[BloodBagOut])
     def available_stock(staff=Depends(staff_only), db=Depends(get_session)):
-        """Available stock only: expired and allocated bags are left out (AC-022)."""
         return list_available_blood_bags(db)
+
+    @router.get("/low-stock", response_model=list[LowStockAlertOut])
+    def low_stock(threshold: int = Query(default=5, ge=0, le=100000), staff=Depends(staff_only), db=Depends(get_session)):
+        return get_low_stock_alerts(db, threshold=threshold)
 
     @router.get("/bags/{unit_id}", response_model=BloodBagOut)
     def blood_bag(unit_id: str, staff=Depends(staff_only), db=Depends(get_session)):
@@ -59,7 +69,6 @@ def create_inventory_router(get_session, require_role):
 
     @router.post("/expire", response_model=ExpiryRunOut)
     def run_expiry(staff=Depends(staff_only), db=Depends(get_session)):
-        """Mark expired units, logging the staff member who ran it (BBS-SR-004)."""
         return ExpiryRunOut(expired_count=expire_blood_units(db, actor_id=staff.id))
 
     return router
