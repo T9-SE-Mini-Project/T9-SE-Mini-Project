@@ -38,6 +38,9 @@ function describe(detail, fallback) {
   if (typeof detail === "string") return detail;
   if (Array.isArray(detail)) return detail.map((d) => d.msg).join("; ");
   if (detail.reasons) return detail.reasons.join("; ");
+  if (detail.error === "insufficient_stock") {
+    return `Not enough compatible stock: ${detail.requested} unit(s) requested, ${detail.available} available.`;
+  }
   return fallback;
 }
 

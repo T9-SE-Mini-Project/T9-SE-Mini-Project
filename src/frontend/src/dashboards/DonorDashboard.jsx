@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api } from "../api.js";
 import { BLOOD_GROUPS, Badge, Card, Empty, StatCard, formatDate, formatTime } from "../components/ui.jsx";
-import { DashboardHeading, LoadErrors, UpcomingDrives, useDashboardData } from "./shared.jsx";
+import { ActionStatus, DashboardHeading, LoadErrors, useAction, useDashboardData } from "./shared.jsx";
 
 // Donor: eligibility (BBS-F-011), donation history (BBS-F-012), bookings and drives.
 export default function DonorDashboard() {
@@ -80,11 +80,70 @@ export default function DonorDashboard() {
               )}
             </Card>
 
-            <UpcomingDrives drives={data.drives} />
+            <BookableDrives drives={data.drives} bookings={data.bookings ?? []} onBooked={() => reload({ quiet: true })} />
           </div>
         </>
       )}
     </>
+  );
+}
+
+// Upcoming drives with a Book button per slot (BBS-F-041). One booking per drive; the
+// backend also checks the donor is eligible on the drive date.
+function BookableDrives({ drives, bookings, onBooked }) {
+  const action = useAction(onBooked);
+  const bookedSlots = new Set(bookings.map((b) => b.slot_id));
+  const bookedDrives = new Set(bookings.map((b) => b.drive_id));
+
+  function book(drive, slot) {
+    action.run(async () => {
+      await api(`/api/drives/slots/${slot.id}/book`, { method: "POST" });
+      return `Booked: ${drive.name}, ${formatDate(drive.date)} at ${formatTime(slot.start_time)}. See you there!`;
+    });
+  }
+
+  return (
+    <Card title="Book a donation slot">
+      <ActionStatus {...action} />
+      {!drives?.length ? (
+        <Empty>No drives scheduled.</Empty>
+      ) : (
+        <ul className="list">
+          {drives.map((drive) => (
+            <li key={drive.id}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+                <strong>{drive.name}</strong>
+                <span className="muted small">{formatDate(drive.date)}</span>
+              </div>
+              <div className="muted small">{drive.location}</div>
+              <div className="slots">
+                {drive.slots.map((slot) => {
+                  const open = slot.capacity - slot.booked_count;
+                  const mine = bookedSlots.has(slot.id);
+                  return (
+                    <div className="slot" key={slot.id}>
+                      <span>{formatTime(slot.start_time)}–{formatTime(slot.end_time)}</span>
+                      <span className="muted small">{open} open</span>
+                      {mine ? (
+                        <Badge tone="green">Booked</Badge>
+                      ) : (
+                        <button
+                          className="small-button"
+                          onClick={() => book(drive, slot)}
+                          disabled={action.busy || open <= 0 || bookedDrives.has(drive.id)}
+                        >
+                          {open <= 0 ? "Full" : "Book"}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
   );
 }
 
