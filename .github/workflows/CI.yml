@@ -32,6 +32,10 @@ jobs:
       - name: Integration tests
         run: python -m pytest tests/integration -v --cov=src/backend --cov-append --cov-report=term --cov-report=xml
 
+      # Starts the real server as a separate process and drives it over HTTP.
+      - name: System tests
+        run: python -m pytest tests/system -v
+
       - name: Upload coverage report
         if: always()
         uses: actions/upload-artifact@v4

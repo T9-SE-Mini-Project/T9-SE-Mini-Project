@@ -4,6 +4,7 @@ Find the Jira Dashboard here:
 https://pes1ug24am351.atlassian.net/jira/software/projects/BLOOD/boards/70/backlog?epics=visible&atlOrigin=eyJpIjoiOWFmMGZlMDFhYzI0NGUyYWIzYmEwOTM1ODliNjMyNmQiLCJwIjoiaiJ9
 
 Requirements, UML and the test plan are in the PDFs / DOCX at the repository root.
+The architecture and design document, test cases, test reports and deviations are in [`docs/`](docs/README.md).
 
 ## Running the backend
 
@@ -49,14 +50,17 @@ pnpm dev            # http://localhost:5173
 The dev server forwards `/api` to the backend on port 8000 (`vite.config.js`), so no CORS
 setup is needed. Set `VITE_API_TARGET` to point it somewhere else.
 
-After login each role gets one read-only dashboard built from the existing endpoints:
+After login each role gets one dashboard. Dashboards refresh every 10 seconds, so an action
+taken in one login shows up in the others.
 
-| Role | Dashboard shows |
-|---|---|
-| Donor | blood group, whether they can donate (and why not), donation history, upcoming drives; a profile form until the profile exists |
-| Blood bank staff | available units, stock by blood group and component, units expiring within 7 days, pending requests, drives |
-| Hospital rep | the hospital's requests and their status |
-| Admin | API status and drive bookings |
+| Role | Dashboard shows | Actions |
+|---|---|---|
+| Donor | blood group, whether they can donate (and why not), donation history, upcoming drives; a profile form until the profile exists | book a drive slot |
+| Blood bank staff | available units, stock by blood group and component, units expiring within 7 days, pending and approved requests, drives | log a batch of bags, approve / reject / dispatch requests, schedule a drive, run the expiry check |
+| Hospital rep | the hospital's requests and their status | submit a request |
+| Admin | API status and drive bookings | schedule a drive, send reminders |
+
+Low-stock alerts and the emergency donor call-out are API-only for now (see the endpoint table).
 
 The theme is red and white (light) or red and black (dark). It follows the system setting,
 and the header toggle overrides it. Colours are CSS variables at the top of `src/styles.css`.
@@ -73,8 +77,12 @@ src/frontend/src/
 ## Running the tests
 
 ```bash
-python -m pytest              # everything
-python -m pytest tests/unit   # unit tests only
+python -m pytest                     # everything
+python -m pytest tests/unit          # one module at a time, with fakes for its neighbours
+python -m pytest tests/integration   # the wired app on a temporary database
+python -m pytest tests/system        # a real server process, driven over HTTP
+
+python scripts/generate_test_reports.py   # run all three and rewrite the reports in docs/
 ```
 
 `pyproject.toml` puts the repository root on the import path, so tests always import the
@@ -125,8 +133,8 @@ Conventions used across modules:
 |---|---|
 | Auth | `POST /api/auth/login`, `GET /api/auth/me`, `POST /api/auth/logout`, `POST /api/auth/signup`, `/signup/verify`, `/signup/resend` |
 | Admin | `POST /api/admin/accounts` |
-| Donor | `POST/GET /api/donors/profile`, `GET /api/donors/me/eligibility`, `GET /api/donors/me/donations`, `GET/POST /api/donors/{donor_id}/donations` (staff) |
-| Inventory | `POST/GET /api/inventory/bags`, `GET /api/inventory/bags/{unit_id}`, `POST /api/inventory/expire` |
+| Donor | `POST/GET /api/donors/profile`, `GET /api/donors/me/eligibility`, `GET /api/donors/me/donations`, `GET/POST /api/donors/{donor_id}/donations` (staff), `POST /api/donors/emergency-callout` (staff) |
+| Inventory | `POST/GET /api/inventory/bags`, `GET /api/inventory/bags/{unit_id}`, `GET /api/inventory/low-stock`, `POST /api/inventory/expire` |
 | Requests | `POST/GET /api/requests`, `GET /api/requests/{id}`, `GET /api/requests/queue`, `GET .../matches`, `POST .../approve`, `.../reject`, `.../dispatch`, `GET .../units`, `.../history` |
 | Drives | `POST/GET /api/drives`, `POST /api/drives/slots/{slot_id}/book`, `GET /api/drives/bookings/me`, `POST /api/drives/reminders/send` |
 
@@ -149,5 +157,7 @@ Conventions used across modules:
 - Recording a donation commits the history row and the inventory bag separately.
 - An approved request whose allocated unit expires cannot be dispatched and has no
   re-allocation flow yet.
-- Frontend actions (approve / dispatch requests, book slots, submit requests, log bags):
-  the dashboards are read-only for now; the API already supports all of these.
+- Low-stock alerts and the emergency call-out have no dashboard screen yet.
+- The emergency call-out selects donors but does not send or log a message yet
+  (defect D-01 in `docs/System_Validation_Report.md`).
+- Differences from the SRS, design and test plan are listed in `docs/Deviations.md`.
